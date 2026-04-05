@@ -1,0 +1,350 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Finance Dashboard</title>
+</head>
+
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <style>
+     :root {
+  --bg: #f3f4f6;
+  --card: #ffffff;
+  --text: #111;
+}
+
+body.dark {
+  --bg: #111827;
+  --card: #1f2937;
+  --text: #f9fafb;
+}
+
+body {
+  font-family: Arial;
+  margin: 0;
+  background: var(--bg);
+  color: var(--text);
+  transition: all 0.3s ease;
+}
+
+.container { padding: 20px; }
+
+.header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.cards {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(200px,1fr));
+  gap: 15px;
+  margin: 20px 0;
+}
+
+.card {
+  background: var(--card);
+  padding: 15px;
+  border-radius: 12px;
+  box-shadow: 0 4px 10px rgba(0,0,0,0.1);
+  transition: transform 0.3s ease;
+}
+
+.card:hover {
+  transform: translateY(-5px);
+}
+
+.section {
+  background: var(--card);
+  padding: 15px;
+  margin-top: 20px;
+  border-radius: 12px;
+  animation: fadeIn 0.5s ease;
+}
+
+table {
+  width: 100%;
+  border-collapse: collapse;
+}
+
+th, td {
+  padding: 10px;
+  border-bottom: 1px solid #ccc;
+}
+
+button {
+  padding: 6px 10px;
+  margin: 2px;
+  border: none;
+  border-radius: 6px;
+  cursor: pointer;
+  transition: transform 0.2s ease;
+}
+
+button:hover {
+  transform: scale(1.05);
+}
+
+.admin-btn { background: #3b82f6; color: white; }
+.filter-btn { background: #6b7280; color: white; }
+.toggle-btn { background: black; color: white; }
+
+body.dark .toggle-btn {
+  background: white;
+  color: black;
+}
+
+@keyframes fadeIn {
+  from { opacity: 0; transform: translateY(10px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+input {
+  padding: 6px;
+  margin-right: 10px;
+  border-radius: 6px;
+  border: 1px solid #ccc;
+}
+.header-controls {
+  display: flex;
+  gap: 10px;
+}
+.actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 5px;
+}
+/* MOBILE RESPONSIVE */
+
+@media (max-width: 768px) {
+
+  .header {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 10px;
+  }
+
+  .cards {
+    grid-template-columns: 1fr;
+  }
+
+  .section {
+    padding: 10px;
+  }
+
+  input {
+    width: 100%;
+    margin-bottom: 10px;
+  }
+
+  button {
+    margin-top: 5px;
+  }
+
+  table {
+    display: block;
+    overflow-x: auto;
+    white-space: nowrap;
+  }
+
+}
+    </style>
+<body>
+<div class="container">
+<div class="header">
+<h2>Finance Dashboard</h2>
+<div>
+    <select id="role">
+        <option value="viewer">Viewer</option>
+        <option value="admin">Admin</option>
+    </select>
+    <button class="toggle-btn" onclick="toggleDark()">🌙</button>
+</div>
+</div>
+<div class="cards">
+    <div class="card">Income: ₹<span id="income"></span></div>
+    <div class="card">Balance: ₹<span id="balance"></span></div>
+    <div class="card">Expenses: ₹<span id="expense"></span></div>
+</div>
+<div class="section"><canvas id="lineChart"></canvas></div>
+<div class="section"><canvas id="pieChart"></canvas></div>
+
+<div class="section">
+    <h3>Insights</h3>
+    <p id="insight"></p>
+</div>
+<div class="section">
+    <input type="text" id="search" placeholder="Search category">
+    <button class="filter-btn" onclick="setFilter('all')">All</button>
+    <button class="filter-btn" onclick="setFilter('income')">Income</button>
+    <button class="filter-btn" onclick="setFilter('expense')">Expenses</button>
+
+    <button class="filter-btn" onclick="setSort('amount')">Sort Amount</button>
+    <button class="filter-btn" onclick="setSort('date')">Sort Date</button>
+
+    <button id="addBtn" class="admin-btn" style="display: none;">Add</button>
+<table>
+    <thead>
+        <tr>
+            <th>Date</th>
+            <th>Amount</th>
+            <th>Category</th>
+            <th>Type</th>
+            <th>Action</th>
+        </tr>
+    </thead>
+    <tbody id="tableBody"></tbody>
+</table>
+<p id="empty" style="display: none;">No transitions found</p>
+
+</div>
+
+</div>
+<script>
+    function toggleDark(){
+        document.body.classList.toggle("dark");
+    }
+    let state = {
+        transactions: [
+            {date:"2026-04-01", amount:5000, category:"Salary", type:"income"},
+            {date:"2026-04-02", amount:1200, category:"Shopping", type:"expense"},
+            {date:"2026-04-03", amount:800, category:"Food", type:"expense"},
+            {date:"2026-04-04", amount:2000, category:"Freelance", type:"income"},
+        ],
+        filter: "all",
+        sort: "",
+        role: "viewer",
+        search: ""
+    };
+    const roleSelect = document.getElementById("role");
+    const addBtn = document.getElementById("addBtn");
+
+    roleSelect.onchange = (e) =>{
+        state.role = e.target.value;
+        addBtn.style.display = state.role==="admin"?"inline-block":"none";
+        render();
+    };
+    addBtn.onclick = ()=>{
+        state.transactions.push({
+          date:"2026-04-05",
+          amount:Math.floor(Math.random()*3000),
+          category:"Misc",
+          type: Math.random()>0.5 ? "income" : "expense"
+        });
+        render();
+    };
+    document.getElementById("search").oninput = (e)=>{
+        state.search = e.target.value;
+        render();
+    };
+    function deleteTx(date){
+        state.transactions = state.transactions.filter(t=>t.date!==date);
+        render();
+    }
+    function setFilter(type){ state.filter=type; render(); }
+    function setSort(type){ state.sort=type; render(); }
+
+    function render(){
+        let income=0, expense=0;
+
+        state.transactions.forEach(t=>{
+            if(t.type==="income") income+=t.amount;
+            else expense+=t.amount;
+        });
+
+        document.getElementById("income").innerText=income;
+        document.getElementById("expense").innerText=expense;
+        document.getElementById("balance").innerText=income-expense;
+       
+        let filtered=state.transactions.filter(t=>
+            t.category.toLowerCase().includes(state.search.toLowerCase())
+        );
+        if(state.filter!=="all"){
+            filtered=filtered.filter(t=>t.type===state.filter);
+        }
+        if(state.sort==="amount"){
+            filtered.sort((a,b)=>b.amount-a.amount);
+        }
+        if(state.sort==="date"){
+            filtered.sort((a,b)=>new Date(b.date)-new Date(a.date));
+        }
+        const tbody=document.getElementById("tableBody");
+        tbody.innerHTML="";
+
+        filtered.forEach(t=>{
+    tbody.innerHTML+=`
+      <tr>
+        <td>${t.date}</td>
+        <td>₹${t.amount}</td>
+        <td>${t.category}</td>
+        <td style="color:${t.type==="income"?"#22c55e":"#ef4444"}">${t.type}</td>
+        ${
+          state.role==="admin"
+          ? `<td><button onclick="deleteTx('${t.date}')">Delete</button></td>`
+          : `<td></td>`
+        }
+      </tr>
+    `;
+  });
+    document.getElementById("empty").style.display =
+    filtered.length===0?"block":"none";
+    renderCharts();
+    renderInsights();
+
+    }
+    function renderCharts(){
+        new Chart(document.getElementById("lineChart"),{
+            type:"line",
+            data:{
+                labels: state.transactions.map(t=>t.date),
+      datasets:[{label:"Trend", data: state.transactions.map(t=>t.amount)}]
+            }
+        });
+
+    
+  let categories={};
+  state.transactions.forEach(t=>{
+    if(t.type==="expense"){
+      categories[t.category]=(categories[t.category]||0)+t.amount;
+    }
+  });
+
+  new Chart(document.getElementById("pieChart"), {
+    type:"pie",
+    data:{
+      labels:Object.keys(categories),
+      datasets:[{data:Object.values(categories)}]
+    }
+  });
+}
+
+function renderInsights(){
+
+  let categories={};
+
+  state.transactions.forEach(t=>{
+    if(t.type==="expense"){
+      categories[t.category]=(categories[t.category]||0)+t.amount;
+    }
+  });
+
+  let max=0, name="";
+  for(let key in categories){
+    if(categories[key]>max){
+      max=categories[key];
+      name=key;
+    }
+  }
+
+  document.getElementById("insight").innerHTML=
+    `🥇 Highest spending: <b>${name}</b> (₹${max})`;
+}
+
+render();
+
+
+</script>
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+</body>
+</html>
